@@ -1,0 +1,4 @@
+interface:
+  display_name: "Long-Running Task Continuation"
+  short_description: "Checkpoint and resume long Hermes tasks in bounded segments."
+  default_prompt: "Run this task in bounded segments, checkpoint progress, and continue automatically after a timeout."
