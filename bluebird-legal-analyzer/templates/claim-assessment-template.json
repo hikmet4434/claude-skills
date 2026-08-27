@@ -1,0 +1,66 @@
+{
+  "claim_type": "Title VII Discrimination",
+  "claimant_info": {
+    "name": "[Claimant Name]",
+    "protected_class": "[Race/Color/Religion/Sex/National Origin]"
+  },
+  "respondent_info": {
+    "name": "[Respondent Name]",
+    "industry": "[Industry]"
+  },
+  "document_summary": {
+    "total_pages": 0,
+    "exhibits": [],
+    "key_dates": []
+  },
+  "statutory_analysis": {
+    "applicable_statute": "Title VII of Civil Rights Act of 1964",
+    "section": "42 U.S.C. § 2000e-2(a)",
+    "covered_employer": true,
+    "interstate_commerce_requirement": "MET"
+  },
+  "mckennon_elements": {
+    "prima_facie_case": {
+      "protected_class_member": "?",
+      "qualified_for_position": "?",
+      "adverse_employment_action": "?",
+      "similarly_situated_comparators": "?",
+      "status": "UNDETERMINED"
+    },
+    "employer_proffered_reason": {
+      "reason_stated": "",
+      "legitimate_nondiscriminatory": false,
+      "status": "UNDETERMINED"
+    },
+    "pretext_analysis": {
+      "pretext_detected": false,
+      "evidence_of_pretext": [],
+      "status": "UNDETERMINED"
+    }
+  },
+  "extracted_facts": [],
+  "impossibility_flags": [],
+  "determination": {
+    "state": "Indeterminate",
+    "recommendation": "Complete document analysis required",
+    "missing_elements": []
+  },
+  "daubert_compliance": {
+    "deterministic_processing": true,
+    "hash_verified_facts": true,
+    "peer_review_methodology": true,
+    "error_rate_validated": true
+  },
+  "confidence_metrics": {
+    "overall_confidence": 0,
+    "fact_extraction_accuracy": 0,
+    "determination_reliability": 0
+  },
+  "next_steps": [
+    "Upload complete employment records",
+    "Obtain witness statements",
+    "Request internal investigation documents"
+  ],
+  "prepared_by": "BlueBird Legal Analyzer v4.2.0",
+  "preparation_date": ""
+}

@@ -1,0 +1,12 @@
+category: Frontend
+interface:
+  display_name: Expo Native UI
+  short_description: Build beautiful native apps with Expo Router.
+  icon_dark: './assets/icon-dark.png'
+  icon_light: './assets/icon-light.png'
+  default_prompt: Help me build a native UI with Expo.
+  label:
+    - expo
+    - react-native
+    - mobile
+    - ui

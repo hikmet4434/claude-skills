@@ -1,0 +1,19 @@
+{
+  "author": "MiniMax Agent",
+  "category": "research",
+  "created_at": "2026-05-29",
+  "description": "Analyzes and summarizes scientific articles into structured sections including introduction, methods, results, discussion, conclusion, and key points.",
+  "id": 403153049493656,
+  "language": "fr",
+  "name": "article-analyzer",
+  "platform": "minimax",
+  "tags": [
+    "scientific",
+    "articles",
+    "research",
+    "analysis",
+    "summaries"
+  ],
+  "updated_at": 1780001241938,
+  "version": "1.0.0"
+}

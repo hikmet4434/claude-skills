@@ -1,0 +1,11 @@
+category: Frontend
+interface:
+  display_name: Flutter App Architecture
+  short_description: Architect Flutter apps with a layered approach.
+  icon_dark: './assets/icon-dark.png'
+  icon_light: './assets/icon-light.png'
+  default_prompt: Help me architect my Flutter application.
+  label:
+    - flutter
+    - mobile
+    - architecture

@@ -1,0 +1,24 @@
+# Büyük binary/medya skill'leri (git'e uygun değil, marketplace'ten kurulur)
+video-use/
+# Bağımlılık / cache / build çıktıları
+**/node_modules/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/.pytest_cache/
+**/dist/
+**/build/
+**/.next/
+# İşletim sistemi / editör
+**/.DS_Store
+**/Thumbs.db
+# Olası yerel sır/çıktı
+**/*.env
+**/*.key
+**/*.pem
+**/.env.local
+# Büyük medya
+**/*.mp4
+**/*.mov
+**/*.zip
+**/*.tar.gz

@@ -1,0 +1,20 @@
+{
+  "author": "BlueBird Legal Technologies",
+  "category": "legal-analysis",
+  "created": "2026-05-29",
+  "id": 403191083601997,
+  "name": "bluebird-legal-analyzer",
+  "platform": "minimax",
+  "skill_id": "bluebird-legal-analyzer-001",
+  "tags": [
+    "employment-law",
+    "legal-evidence",
+    "daubert",
+    "title-vii",
+    "ada",
+    "fmla",
+    "adea"
+  ],
+  "updated_at": 1780007290667,
+  "version": "4.2.0"
+}

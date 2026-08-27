@@ -1,0 +1,11 @@
+category: Backend
+interface:
+  display_name: Python Best Practices
+  short_description: Write production-grade Python with modern standards.
+  icon_dark: './assets/icon-dark.png'
+  icon_light: './assets/icon-light.png'
+  default_prompt: Help me write clean, modern Python code.
+  label:
+    - python
+    - backend
+    - code-quality
