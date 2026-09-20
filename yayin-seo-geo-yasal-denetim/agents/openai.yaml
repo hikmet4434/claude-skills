@@ -1,0 +1,4 @@
+interface:
+  display_name: "Yayın SEO/GEO ve Yasal Denetim"
+  short_description: "Yayın öncesi SEO, GEO ve resmî sayfa denetimi"
+  default_prompt: "Uygulamayı yayına hazırlarken resmî sayfaları, SEO/GEO, indeksleme ve canlı çıktıyı denetle; eksikleri uygula ve kanıtla."
