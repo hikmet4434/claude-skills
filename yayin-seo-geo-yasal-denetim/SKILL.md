@@ -3,7 +3,7 @@ name: yayin-seo-geo-yasal-denetim
 description: "Bir web uygulaması canlıya çıkmadan veya iş teslimi biterken resmî/kurumsal sayfaları, SEO, GEO, indeksleme ve canlı çıktıyı denetler; eksikleri kodda tamamlar ve üretimde kanıtlar. Uygulama bitti, canlıya hazır mı, yayına al, launch checklist, release readiness, SEO audit, GEO audit, legal pages, privacy policy, terms, cookies, KVKK, robots, sitemap, canonical, hreflang, JSON-LD, llms.txt ifadelerinde kullan. Yeni veya önemli ölçüde değişmiş halka açık web uygulamasının son teslim aşamasında kullanıcı ayrıca istemese de uygula. Güvenlik sızma testi için güvenlik skillini ayrıca kullan."
 license: MIT
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   language: tr
 ---
 
@@ -25,6 +25,7 @@ Halka açık bir web uygulamasının bitiş kontrolünü yap. Mevcut teknolojiye
 3. Mevcut resmî sayfaları ara; yeniden yazmadan önce gerçek içeriği ve linkleri denetle.
 4. Ülke ve kullanıcı kitlesine göre geçerli yükümlülükleri güncel, birincil kaynaklardan doğrula. Hukuki hüküm uydurma.
 5. Şirket unvanı, kayıtlı adres, vergi/MERSİS/sicil, fiyat, veri kapsamı, müşteri sayısı, değerlendirme veya sertifika uydurma. Eksik işletme bilgisini açık bekleyen madde yap.
+6. Hikmet'in Coolify portföyündeki sitelerde işletmeci bilgisi için [references/strateji-danismanlik-portfoy-profili.md](references/strateji-danismanlik-portfoy-profili.md) dosyasını uygula. Projede farklı ve doğrulanmış bir işletmeci açıkça tanımlanmışsa proje kaydı önceliklidir; çelişkiyi sessizce ezme.
 
 Ayrıntılı kontrol listesi için [references/kontrol-listesi.md](references/kontrol-listesi.md) dosyasını gerektiğinde oku.
 
