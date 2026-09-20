@@ -46,18 +46,60 @@ let validJsonLd = 0;
 for (const block of jsonLdBlocks) {
   try { JSON.parse(block[1]); validJsonLd += 1; } catch {}
 }
-const legalSignals = {
-  privacy: /(?:gizlilik|privacy)/i.test(home.text + sitemap.text),
-  terms: /(?:kullanim-kosullari|kullanım şartları|terms)/i.test(home.text + sitemap.text),
-  cookies: /(?:cerez|çerez|cookie)/i.test(home.text + sitemap.text),
-  contact: /(?:iletisim|iletişim|contact)/i.test(home.text + sitemap.text)
+const hreflangs = [...home.text.matchAll(/<link[^>]+rel=["']alternate["'][^>]+hreflang=["']([^"']+)["'][^>]+href=["']([^"']+)["'][^>]*>/gi)]
+  .map(([, language, href]) => ({ language, href }));
+const metaRobots = match(home.text, /<meta[^>]+name=["']robots["'][^>]+content=["']([^"']*)["'][^>]*>/i) ||
+  match(home.text, /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']robots["'][^>]*>/i);
+const ogTitle = match(home.text, /<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']*)["'][^>]*>/i) ||
+  match(home.text, /<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:title["'][^>]*>/i);
+const ogDescription = match(home.text, /<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']*)["'][^>]*>/i) ||
+  match(home.text, /<meta[^>]+content=["']([^"']*)["'][^>]+property=["']og:description["'][^>]*>/i);
+const legalDefinitions = {
+  privacy: {
+    pattern: /(?:gizlilik|privacy|kişisel veriler|kisisel veriler|kvkk)/i,
+    paths: ["/gizlilik", "/gizlilik-politikasi", "/privacy", "/privacy-policy", "/kvkk"]
+  },
+  terms: {
+    pattern: /(?:kullanim-kosullari|kullanım koşulları|kullanim-sartlari|kullanım şartları|terms(?:-of-service)?)/i,
+    paths: ["/kullanim-kosullari", "/kullanim-sartlari", "/terms", "/terms-of-service"]
+  },
+  cookies: {
+    pattern: /(?:cerez|çerez|cookie)/i,
+    paths: ["/cerez-politikasi", "/cerezler", "/cookies", "/cookie-policy"]
+  },
+  contact: {
+    pattern: /(?:iletisim|iletişim|contact|destek|support)/i,
+    paths: ["/iletisim", "/contact", "/destek", "/support"]
+  }
 };
+const legalCorpus = home.text + sitemap.text;
+const missingLegal = Object.entries(legalDefinitions).filter(([, definition]) => !definition.pattern.test(legalCorpus));
+const routeResults = await Promise.all(missingLegal.flatMap(([name, definition]) =>
+  definition.paths.map(async path => ({ name, path, definition, response: await get(path) }))
+));
+const legalRoutes = {};
+for (const { name, path, definition, response } of routeResults) {
+  if (legalRoutes[name]) continue;
+  const resolvedPath = (() => { try { return new URL(response.url).pathname; } catch { return ""; } })();
+  const routeStayedDistinct = resolvedPath !== "/" && resolvedPath !== base.pathname;
+  if (response.status === 200 && routeStayedDistinct && definition.pattern.test(response.text)) legalRoutes[name] = path;
+}
+const legalSignals = Object.fromEntries(Object.entries(legalDefinitions).map(([name, definition]) => [
+  name,
+  definition.pattern.test(legalCorpus) || Boolean(legalRoutes[name])
+]));
+const aiBotNames = ["GPTBot", "OAI-SearchBot", "ChatGPT-User", "ClaudeBot", "PerplexityBot", "Google-Extended"];
+const robotsLower = robots.text.toLowerCase();
+const aiPolicy = Object.fromEntries(aiBotNames.map(name => [name, robotsLower.includes(`user-agent: ${name.toLowerCase()}`) ? "explicit" : "default"]));
 
 const checks = [
   ["home_http", home.status >= 200 && home.status < 400, home.status],
   ["title", title.length > 0, title],
   ["description", description.length > 0, description],
   ["canonical", /^https?:\/\//.test(canonical), canonical],
+  ["hreflang_urls", hreflangs.every(item => /^https?:\/\//.test(item.href)), hreflangs],
+  ["meta_robots", !/noindex/i.test(metaRobots), metaRobots || "index varsayımı"],
+  ["open_graph", Boolean(ogTitle && ogDescription), `${Boolean(ogTitle)}/${Boolean(ogDescription)}`],
   ["robots_http", robots.status === 200, robots.status],
   ["robots_sitemap", /sitemap:/i.test(robots.text), /sitemap:/i.test(robots.text)],
   ["sitemap_http", sitemap.status === 200, sitemap.status],
@@ -73,6 +115,8 @@ const report = {
   resolvedUrl: home.url,
   checks: Object.fromEntries(checks.map(([name, ok, value]) => [name, { ok, value }])),
   legalSignals,
+  legalRoutes,
+  aiCrawlerPolicy: aiPolicy,
   llms: { status: llms.status },
   warnings,
   failures
