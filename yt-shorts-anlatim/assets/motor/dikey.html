@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="tr"><head><meta charset="utf-8">
+<style>
+/* Anlatım tarzı dikey Short şablonu (1080x1920). Renkler ana videonun temasından gelir:
+   koyu lacivert zemin + videonun tema rengi (--h ton açısı; dikey.js veriden ayarlar). */
+:root{--h:113;--ac:hsl(var(--h) 100% 68%);--ac2:hsl(var(--h) 80% 52%);--acik:hsl(var(--h) 100% 88%);--ink:#0B1220;--kirmizi:#FF5A5F;--sari:#FFD84D}
+html,body{margin:0;background:#000;overflow:hidden}
+#stage{position:relative;width:1080px;height:1920px;overflow:hidden;color:#fff;
+  background:radial-gradient(ellipse 85% 46% at 50% 44%,hsl(var(--h) 90% 55% / .17),transparent 70%),linear-gradient(180deg,#1b2233 0%,#141a28 58%,#0c1019 100%);
+  font-family:-apple-system,'SF Pro Display','Helvetica Neue',Inter,'Noto Sans','DejaVu Sans',sans-serif}
+#izgara{position:absolute;inset:0;background:
+  repeating-linear-gradient(0deg,hsl(var(--h) 100% 72% / .055) 0 2px,transparent 2px 96px),
+  repeating-linear-gradient(90deg,hsl(var(--h) 100% 72% / .04) 0 2px,transparent 2px 96px)}
+#stage *{box-sizing:border-box}
+.abs{position:absolute}
+.sh{position:absolute;left:0;top:0;width:1080px;height:1920px;visibility:hidden}
+.shic{position:absolute;left:0;top:0;width:1080px;height:1920px}
+/* hafif eğik orta bant: üst ve alt kenarı tema renginde */
+.panel{position:absolute;left:0;top:350px;width:1080px;height:1040px;background:var(--ac);clip-path:polygon(0 3.2%,100% 0,100% 96.8%,0 100%)}
+.panel::after{content:'';position:absolute;left:0;right:0;top:6px;bottom:6px;background:linear-gradient(172deg,hsl(var(--h) 42% 21%),hsl(var(--h) 48% 11%));clip-path:polygon(0 3.2%,100% 0,100% 96.8%,0 100%)}
+/* etiketler */
+.chip{display:inline-block;background:hsl(var(--h) 100% 60% / .16);border:3px solid var(--ac);color:var(--acik);font-weight:800;font-size:40px;line-height:1;padding:12px 28px 14px;border-radius:999px;transform:rotate(-3deg);white-space:nowrap}
+.chip.y{background:var(--ac);color:var(--ink)}
+.chip.b{background:#fff;border-color:#fff;color:var(--ink)}
+.pill{display:inline-block;background:var(--kirmizi);color:#fff;font-weight:900;font-size:50px;line-height:1;padding:16px 34px 19px;border-radius:999px;transform:rotate(-4deg);white-space:nowrap;box-shadow:0 10px 0 rgba(0,0,0,.28)}
+.pill.y{background:var(--sari);color:var(--ink)}
+/* dev başlık kelimesi: dolu olan tema renginde ve derinlikli, konturlu olan açık renk çizgi */
+.dev{font-weight:900;letter-spacing:-.045em;line-height:.9;color:var(--ac);white-space:nowrap;text-shadow:0 7px 0 hsl(var(--h) 70% 36%),0 0 70px hsl(var(--h) 100% 60% / .45)}
+.dev.o{color:transparent;-webkit-text-stroke:5px #EAF2FF;text-shadow:none}
+/* renk bloğu + taban çizgisi */
+.blok{background:linear-gradient(165deg,hsl(var(--h) 100% 73%),var(--ac2));box-shadow:0 0 90px hsl(var(--h) 100% 60% / .32);color:var(--ink);display:flex;align-items:flex-end;justify-content:center}
+.taban{height:24px;background:#34425f}
+.rozet{width:190px;height:190px;border-radius:50%;background:var(--sari);color:var(--ink);font-weight:900;font-size:140px;line-height:190px;text-align:center;box-shadow:0 12px 0 rgba(0,0,0,.3)}
+.baslik{font-weight:900;font-size:78px;line-height:1.04;letter-spacing:-.03em}
+.baslik b{color:var(--ac)}
+.kucuk{font-weight:800;font-size:30px;letter-spacing:.08em;color:var(--acik)}
+.kesik{border:5px dashed hsl(var(--h) 60% 82% / .75);border-radius:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.kart{border-radius:28px;padding:34px 40px}
+.kart.koyu{background:linear-gradient(160deg,hsl(var(--h) 45% 22% / .97),hsl(var(--h) 50% 11% / .98));border:3px solid var(--ac);box-shadow:0 0 44px hsl(var(--h) 100% 60% / .22);color:#fff}
+.kart.acik{background:#fff;color:var(--ink)}
+.kart.renk{background:linear-gradient(165deg,hsl(var(--h) 100% 73%),var(--ac2));color:var(--ink)}
+.kart.renk .kucuk{color:var(--ink)}
+.foto{border:6px solid var(--ac);border-radius:26px;box-shadow:0 26px 70px rgba(0,0,0,.55),0 0 60px hsl(var(--h) 100% 60% / .25);overflow:hidden;background:#000}
+.foto img{display:block;width:100%;height:100%;object-fit:cover}
+.balon{background:#fff;color:var(--ink);font-weight:900;font-size:44px;border-radius:34px;padding:18px 30px;line-height:1;white-space:nowrap}
+.balon.y{background:var(--ac)}
+.cizgi{height:16px;border-radius:8px;background:rgba(255,255,255,.22)}
+/* logo ve altyazı (ana videodaki altyazı bandı gibi: koyu zemin, anahtar kelime tema renginde) */
+#logo{position:absolute;left:84px;top:196px;font-weight:900;font-size:46px;letter-spacing:-.03em;line-height:1;z-index:40;display:flex;align-items:center;gap:10px;color:#fff}
+#logo i{font-style:normal;background:var(--ac);color:var(--ink);border-radius:12px;padding:5px 12px 7px}
+#cap{position:absolute;left:30px;right:30px;top:1456px;text-align:center;font-weight:800;font-size:62px;letter-spacing:-.025em;line-height:1.14;z-index:50;white-space:nowrap}
+#cap>div{display:inline-block;background:rgba(8,12,20,.84);border:2px solid hsl(var(--h) 100% 68% / .42);border-radius:26px;padding:16px 36px 20px;color:#fff}
+#cap .nx{color:rgba(255,255,255,.48)}
+#cap .vg{color:var(--ac)}
+</style></head><body>
+<div id="stage"><div id="izgara"></div><div id="sahneler"></div><div id="logo"></div><div id="cap"></div></div>
+<!--BETIKLER-->
+</body></html>

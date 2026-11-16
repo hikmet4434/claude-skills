@@ -1,0 +1,6 @@
+{
+  "name": "yt-shorts-anlatim-betikleri",
+  "private": true,
+  "description": "Anlatım tarzı dikey Short üretimi: kare yakalama için playwright-core (sistemdeki Chrome kullanılır, tarayıcı indirilmez).",
+  "dependencies": { "playwright-core": "^1.49.0" }
+}
