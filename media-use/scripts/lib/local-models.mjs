@@ -25,7 +25,7 @@ const MODELS = {
       needs: { ramMB: 2048, gpu: false },
       wordTimestamps: "native",
       install: "pip install kokoro",
-      invoke: "python -m kokoro --text {text} --voice {voice} --out {out}",
+      invoke: ["python", "-m", "kokoro", "--text", "{text}", "--voice", "{voice}", "--out", "{out}"],
       notes: "CPU, faster-than-realtime, native per-word timestamps. Default floor.",
     },
     {
@@ -35,7 +35,7 @@ const MODELS = {
       needs: { ramMB: 16000, gpu: true, vramMB: 12000 },
       wordTimestamps: "whisperx", // needs forced alignment (run ASR over output)
       install: "pip install fish-speech",
-      invoke: "fish-speech synth --text {text} --ref {ref} --out {out}",
+      invoke: ["fish-speech", "synth", "--text", "{text}", "--ref", "{ref}", "--out", "{out}"],
       notes: "Expressive zero-shot voice cloning; meeting pick. WhisperX for word timing.",
     },
   ],
@@ -61,8 +61,16 @@ const MODELS = {
       repo: "mlx-community/parakeet-tdt-0.6b-v3",
       install:
         "uv venv ~/.venvs/parakeet && VIRTUAL_ENV=~/.venvs/parakeet uv pip install parakeet-mlx",
-      invoke:
-        "parakeet-mlx {audio} --model mlx-community/parakeet-tdt-0.6b-v3 --output-format json --output-dir {outdir}",
+      invoke: [
+        "parakeet-mlx",
+        "{audio}",
+        "--model",
+        "mlx-community/parakeet-tdt-0.6b-v3",
+        "--output-format",
+        "json",
+        "--output-dir",
+        "{outdir}",
+      ],
       notes:
         "NVIDIA Parakeet-TDT 0.6B via parakeet-mlx. VERIFIED on 24GB: accurate transcript, ~3s (cached model) for 8s audio, word timestamps drive transcript-cut. English + 25 European languages. Beats whisper.cpp on accuracy (6.05% vs 7.44% WER) AND speed (5-10x).",
     },
@@ -74,7 +82,7 @@ const MODELS = {
       needs: { ramMB: 4096, gpu: false },
       wordTimestamps: "native", // faster-whisper + wav2vec2 forced alignment
       install: "pip install whisperx",
-      invoke: "whisperx {audio} --output_format json --out {out}",
+      invoke: ["whisperx", "{audio}", "--output_format", "json", "--out", "{out}"],
       notes:
         "CPU-only fallback (no GPU): faster-whisper + wav2vec2 forced alignment, native word timestamps. The packaged `hyperframes transcribe` (whisper.cpp) is the zero-setup baseline below this.",
     },
@@ -87,7 +95,7 @@ const MODELS = {
       needs: { ramMB: 2048, gpu: false },
       wordTimestamps: false,
       install: "brew install real-esrgan-ncnn-vulkan  # or download the ncnn binary",
-      invoke: "realesrgan-ncnn-vulkan -i {in} -o {out} -s 4",
+      invoke: ["realesrgan-ncnn-vulkan", "-i", "{in}", "-o", "{out}", "-s", "4"],
       notes: "ncnn-vulkan binary, CPU-capable. GFPGAN for faces.",
     },
     {
@@ -97,7 +105,7 @@ const MODELS = {
       needs: { ramMB: 24000, gpu: true, vramMB: 16000 },
       wordTimestamps: false,
       install: "pip install seedvr2",
-      invoke: "seedvr2 upscale --in {in} --out {out}",
+      invoke: ["seedvr2", "upscale", "--in", "{in}", "--out", "{out}"],
       notes: "Diffusion upscaler, GPU-only. Video2X for video.",
     },
   ],
@@ -120,8 +128,26 @@ const MODELS = {
       wordTimestamps: false,
       install:
         "git clone https://github.com/dgrauet/ltx-2-mlx && cd ltx-2-mlx && uv sync --all-extras",
-      invoke:
-        "ltx-2-mlx generate --prompt {prompt} --distilled --low-ram --model dgrauet/ltx-2.3-mlx-q4 --width {w} --height {h} --frames {frames} --frame-rate 24 --output {out}",
+      invoke: [
+        "ltx-2-mlx",
+        "generate",
+        "--prompt",
+        "{prompt}",
+        "--distilled",
+        "--low-ram",
+        "--model",
+        "dgrauet/ltx-2.3-mlx-q4",
+        "--width",
+        "{w}",
+        "--height",
+        "{h}",
+        "--frames",
+        "{frames}",
+        "--frame-rate",
+        "24",
+        "--output",
+        "{out}",
+      ],
       notes:
         "LTX 2.3 int4 on MLX. Verified on 24GB unified: 512x320 x 33 frames in ~19 min cold (incl. text-encoder download), t2v with audio. Dims must be multiples of 64. i2v, retake/extend, keyframe interpolation supported.",
     },
@@ -133,8 +159,25 @@ const MODELS = {
       wordTimestamps: false,
       install:
         "git clone https://github.com/dgrauet/ltx-2-mlx && cd ltx-2-mlx && uv sync --all-extras",
-      invoke:
-        "ltx-2-mlx generate --prompt {prompt} --two-stage --model dgrauet/ltx-2.3-mlx-bf16 --width {w} --height {h} --frames {frames} --frame-rate 24 --output {out}",
+      invoke: [
+        "ltx-2-mlx",
+        "generate",
+        "--prompt",
+        "{prompt}",
+        "--two-stage",
+        "--model",
+        "dgrauet/ltx-2.3-mlx-bf16",
+        "--width",
+        "{w}",
+        "--height",
+        "{h}",
+        "--frames",
+        "{frames}",
+        "--frame-rate",
+        "24",
+        "--output",
+        "{out}",
+      ],
       notes:
         "Full-precision two-stage pipeline (upstream production default). 32GB with --low-ram block streaming; 64-128GB Macs for long/HD runs (the 25s multi-scene spots seen in the wild).",
     },
@@ -160,8 +203,26 @@ const MODELS = {
       repo: "dhairyashil/FLUX.1-schnell-mflux-4bit",
       wordTimestamps: false,
       install: "uv venv ~/.venvs/mflux && VIRTUAL_ENV=~/.venvs/mflux uv pip install mflux==0.9.6",
-      invoke:
-        "mflux-generate --model schnell --path {model_path} --low-ram --steps 4 --prompt {prompt} --width {w} --height {h} --seed {seed} --output {out}",
+      invoke: [
+        "mflux-generate",
+        "--model",
+        "schnell",
+        "--path",
+        "{model_path}",
+        "--low-ram",
+        "--steps",
+        "4",
+        "--prompt",
+        "{prompt}",
+        "--width",
+        "{w}",
+        "--height",
+        "{h}",
+        "--seed",
+        "{seed}",
+        "--output",
+        "{out}",
+      ],
       notes:
         "FLUX.1 schnell int4. VERIFIED on 24GB (7.6GB free): --low-ram 512x512 in ~20s, photoreal. --low-ram is MANDATORY at this tier (streams to avoid swap). Few-step, fast.",
     },
@@ -173,8 +234,25 @@ const MODELS = {
       repo: "Runpod/FLUX.2-klein-4B-mflux-4bit",
       wordTimestamps: false,
       install: "uv venv ~/.venvs/mflux && VIRTUAL_ENV=~/.venvs/mflux uv pip install mflux",
-      invoke:
-        "mflux-generate --base-model flux2-klein-4b --path {model_path} --steps 8 --prompt {prompt} --width {w} --height {h} --seed {seed} --output {out}",
+      invoke: [
+        "mflux-generate",
+        "--base-model",
+        "flux2-klein-4b",
+        "--path",
+        "{model_path}",
+        "--steps",
+        "8",
+        "--prompt",
+        "{prompt}",
+        "--width",
+        "{w}",
+        "--height",
+        "{h}",
+        "--seed",
+        "{seed}",
+        "--output",
+        "{out}",
+      ],
       notes:
         "FLUX.2 Klein 4B int4 (most-downloaded mflux community repo). Newer, higher quality than schnell; full-resident (no streaming) so needs 32GB+ to stay fast. Needs mflux >= 0.18 for the flux2-klein base model.",
     },
@@ -186,8 +264,23 @@ const MODELS = {
       repo: "Qwen/Qwen-Image",
       wordTimestamps: false,
       install: "uv venv ~/.venvs/mflux && VIRTUAL_ENV=~/.venvs/mflux uv pip install mflux",
-      invoke:
-        "mflux-generate --base-model qwen --steps 20 --prompt {prompt} --width {w} --height {h} --seed {seed} --output {out}",
+      invoke: [
+        "mflux-generate",
+        "--base-model",
+        "qwen",
+        "--steps",
+        "20",
+        "--prompt",
+        "{prompt}",
+        "--width",
+        "{w}",
+        "--height",
+        "{h}",
+        "--seed",
+        "{seed}",
+        "--output",
+        "{out}",
+      ],
       notes:
         "Qwen-Image, top-tier quality. Heavy: 'several minutes' even on 128GB M4 Max, 'almost fried' a 32GB M4 Pro. 64GB+ only. Below that, the cloud upsell (codex) is faster and better.",
     },
@@ -205,15 +298,22 @@ export function listModels(capability) {
   return tableFor(capability).slice();
 }
 
-// Tokenize an `invoke` template on whitespace first, then substitute each
-// token, so a `{prompt}`/`{model_path}` value with spaces stays a single argv
-// entry. Shared by every local-model provider (mflux, LTX) that builds argv
-// from a MODELS[...].invoke template.
-export function buildArgv(template, vars) {
-  return template
-    .trim()
-    .split(/\s+/)
-    .map((tok) => tok.replace(/\{(\w+)\}/g, (_, k) => (k in vars ? String(vars[k]) : `{${k}}`)));
+/** Return the executable name from an `invoke` array (or legacy string). */
+export function invokeExecutable(template) {
+  return Array.isArray(template) ? template[0] : String(template).trim().split(/\s+/)[0];
+}
+
+// Substitute `{var}` placeholders element-wise over an `[executable, ...argTemplates]`
+// array (or legacy whitespace-delimited string) without shell interpretation so
+// values containing spaces or shell metacharacters stay single argv entries.
+export function buildArgv(template, vars = {}, { missing = "keep" } = {}) {
+  const tokens = Array.isArray(template) ? template : String(template).trim().split(/\s+/);
+  return tokens.map((tok) =>
+    String(tok).replace(/\{(\w+)\}/g, (_, k) => {
+      if (k in vars && vars[k] != null) return String(vars[k]);
+      return missing === "empty" ? "" : `{${k}}`;
+    }),
+  );
 }
 
 /** Does this machine meet a model's needs? Apple Silicon unified memory counts as VRAM. */

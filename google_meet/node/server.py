@@ -13,7 +13,8 @@ On first boot we mint 32 hex chars of entropy and persist them at
 ``$HERMES_HOME/workspace/meetings/node_token.json``. Subsequent boots
 reuse the same token so previously-approved gateways don't need to be
 re-paired. The operator copies this token out-of-band to the gateway
-via ``hermes meet node approve <name> <url> <token>``.
+via ``HERMES_MEET_NODE_TOKEN=<token> hermes meet node approve <name> <url>``
+(or via stdin with ``--token-stdin``).
 
 Dependencies
 ------------
@@ -26,6 +27,7 @@ from __future__ import annotations
 
 import json
 import secrets
+import ssl
 import time
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -47,12 +49,39 @@ class NodeServer:
         port: int = 18789,
         token_path: Optional[Path] = None,
         display_name: str = "hermes-meet-node",
+        ssl_context: Optional[ssl.SSLContext] = None,
+        tls_cert: Optional[Path | str] = None,
+        tls_key: Optional[Path | str] = None,
     ) -> None:
         self.host = host
         self.port = port
         self.display_name = display_name
         self.token_path = Path(token_path) if token_path is not None else _default_token_path()
         self._token: Optional[str] = None
+        self.ssl_context = ssl_context
+        self.tls_cert = Path(tls_cert) if tls_cert is not None else None
+        self.tls_key = Path(tls_key) if tls_key is not None else None
+
+    def resolve_ssl_context(self) -> Optional[ssl.SSLContext]:
+        """Return an SSLContext when TLS is configured, or enforce loopback-only ws://."""
+        if self.ssl_context is not None:
+            return self.ssl_context
+        if self.tls_cert is not None:
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            ctx.load_cert_chain(
+                certfile=str(self.tls_cert),
+                keyfile=str(self.tls_key) if self.tls_key is not None else None,
+            )
+            return ctx
+        if self.tls_key is not None:
+            raise RuntimeError("tls_cert is required when tls_key is provided")
+        if not _proto.is_loopback_host(self.host):
+            raise RuntimeError(
+                f"Refusing to bind unencrypted ws:// server to non-loopback host {self.host!r}; "
+                "configure TLS (--tls-cert/--tls-key) for wss:// or bind to 127.0.0.1"
+            )
+        return None
 
     # ----- token management --------------------------------------------
 
@@ -70,20 +99,12 @@ class NodeServer:
             except (OSError, json.JSONDecodeError):
                 pass
         tok = secrets.token_hex(16)  # 32 hex chars
-        self.token_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.token_path.with_suffix(".json.tmp")
-        tmp.write_text(
-            json.dumps({"token": tok, "generated_at": time.time()}, indent=2),
-            encoding="utf-8",
+        # Restrict to owner-read-write only at creation time — the token grants
+        # full RPC access to the meet bot (start, transcribe, speak in meetings).
+        _proto.write_secret_json(
+            self.token_path,
+            {"token": tok, "generated_at": time.time()},
         )
-        # Restrict to owner-read-write only — the token grants full RPC
-        # access to the meet bot (start, transcribe, speak in meetings).
-        try:
-            tmp.chmod(0o600)
-        except (OSError, NotImplementedError):
-            # Best-effort on non-POSIX filesystems; mode is set on POSIX.
-            pass
-        tmp.replace(self.token_path)
         self._token = tok
         return tok
 
@@ -121,25 +142,45 @@ class NodeServer:
                         "payload": {"display_name": self.display_name,
                                     "ts": time.time()}}
             if t == "start_bot":
-                # Whitelist kwargs we pass through to pm.start.
-                kwargs = {
-                    k: payload[k]
-                    for k in ("url", "guest_name", "duration", "headed",
-                              "auth_state", "session_id", "out_dir")
-                    if k in payload
-                }
-                if "url" not in kwargs:
-                    return _proto.make_error(req_id, "missing 'url' in payload")
+                if "out_dir" in payload or "auth_state" in payload:
+                    return _proto.make_error(
+                        req_id,
+                        "remote clients cannot specify 'out_dir' or 'auth_state'",
+                    )
+                url = payload.get("url")
+                if not isinstance(url, str) or not url.strip():
+                    return _proto.make_error(req_id, "missing or invalid 'url' in payload")
+                kwargs: Dict[str, Any] = {"url": url}
+                if "guest_name" in payload and payload["guest_name"] is not None:
+                    if not isinstance(payload["guest_name"], str):
+                        return _proto.make_error(req_id, "'guest_name' must be a string")
+                    kwargs["guest_name"] = payload["guest_name"]
+                if "duration" in payload and payload["duration"] is not None:
+                    if not isinstance(payload["duration"], str):
+                        return _proto.make_error(req_id, "'duration' must be a string")
+                    kwargs["duration"] = payload["duration"]
+                if "headed" in payload:
+                    if not isinstance(payload["headed"], bool):
+                        return _proto.make_error(req_id, "'headed' must be a boolean")
+                    kwargs["headed"] = payload["headed"]
+                if "session_id" in payload and payload["session_id"] is not None:
+                    if not isinstance(payload["session_id"], str):
+                        return _proto.make_error(req_id, "'session_id' must be a string")
+                    kwargs["session_id"] = payload["session_id"]
                 result = pm.start(**kwargs)
                 return _proto.make_response(req_id, result)
             if t == "stop":
                 reason_arg = payload.get("reason", "requested")
+                if not isinstance(reason_arg, str):
+                    return _proto.make_error(req_id, "'reason' must be a string")
                 result = pm.stop(reason=reason_arg)
                 return _proto.make_response(req_id, result)
             if t == "status":
                 return _proto.make_response(req_id, pm.status())
             if t == "transcript":
                 last = payload.get("last")
+                if last is not None and (isinstance(last, bool) or not isinstance(last, int) or last < 1):
+                    return _proto.make_error(req_id, "'last' must be a positive integer")
                 result = pm.transcript(last=last)
                 return _proto.make_response(req_id, result)
             if t == "say":
@@ -147,6 +188,8 @@ class NodeServer:
                 # active meeting's out_dir when present. The bot-side
                 # consumer is v3+ (for v1 this is a stub returning ok).
                 text = payload.get("text", "")
+                if not isinstance(text, str):
+                    return _proto.make_error(req_id, "'text' must be a string")
                 active = pm._read_active()  # type: ignore[attr-defined]
                 enqueued = False
                 if active and active.get("out_dir"):
@@ -182,6 +225,7 @@ class NodeServer:
                 "Install it with: pip install websockets"
             ) from exc
 
+        ssl_ctx = self.resolve_ssl_context()
         self.ensure_token()
 
         async def _handler(ws):
@@ -194,7 +238,7 @@ class NodeServer:
                 reply = await self._handle_request(msg)
                 await ws.send(_proto.encode(reply))
 
-        async with websockets.serve(_handler, self.host, self.port):
+        async with websockets.serve(_handler, self.host, self.port, ssl=ssl_ctx):
             # Run until cancelled.
             import asyncio
             await asyncio.Future()

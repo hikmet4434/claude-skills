@@ -13,9 +13,68 @@ server). Mismatched tokens are rejected before dispatch.
 
 from __future__ import annotations
 
+import hmac
+import ipaddress
 import json
+import os
+from pathlib import Path
+import urllib.parse
 import uuid
 from typing import Any, Dict, Tuple
+
+
+def write_secret_json(path: Path, data: Dict[str, Any]) -> None:
+    """Atomically write JSON *data* to *path* with owner-only 0o600 permissions."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".json.tmp")
+    payload = json.dumps(data, indent=2)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(payload)
+    except Exception:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        raise
+    try:
+        os.chmod(tmp, 0o600)
+    except (OSError, NotImplementedError):
+        pass
+    tmp.replace(path)
+
+
+def is_loopback_host(host: str) -> bool:
+    """Return True when *host* resolves syntactically to a loopback interface."""
+    if not isinstance(host, str):
+        return False
+    norm = host.strip()
+    if not norm:
+        return False
+    if norm.startswith("[") and norm.endswith("]"):
+        norm = norm[1:-1]
+    if "%" in norm:
+        norm = norm.split("%", 1)[0]
+    if norm.rstrip(".").lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(norm).is_loopback
+    except ValueError:
+        return False
+
+
+def validate_ws_url(url: str) -> None:
+    """Ensure *url* is ws:// (loopback only) or wss://."""
+    if not isinstance(url, str) or not url.strip():
+        raise ValueError("url must be a non-empty string")
+    parsed = urllib.parse.urlparse(url.strip())
+    if parsed.scheme not in {"ws", "wss"} or not parsed.hostname:
+        raise ValueError("url must be a valid ws:// or wss:// WebSocket URL")
+    if parsed.scheme == "ws" and not is_loopback_host(parsed.hostname):
+        raise ValueError(
+            "plaintext ws:// is only allowed for loopback hosts; use wss:// for remote hosts"
+        )
 
 
 VALID_REQUEST_TYPES = frozenset({
@@ -116,7 +175,9 @@ def validate_request(msg: Dict[str, Any], expected_token: str) -> Tuple[bool, st
     token = msg.get("token")
     if not isinstance(token, str) or not token:
         return False, "missing token"
-    if token != expected_token:
+    if not isinstance(expected_token, str) or not expected_token:
+        return False, "server token not configured"
+    if not hmac.compare_digest(token.encode("utf-8"), expected_token.encode("utf-8")):
         return False, "token mismatch"
     payload = msg.get("payload")
     if not isinstance(payload, dict):

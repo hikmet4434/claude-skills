@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from hermes_constants import get_hermes_home
+from plugins.google_meet.node.protocol import validate_ws_url, write_secret_json
 
 
 def _default_path() -> Path:
@@ -52,10 +53,7 @@ class NodeRegistry:
         return data
 
     def _save(self, data: Dict[str, Any]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self.path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
-        tmp.replace(self.path)
+        write_secret_json(self.path, data)
 
     # ----- public API ---------------------------------------------------
 
@@ -69,13 +67,12 @@ class NodeRegistry:
     def add(self, name: str, url: str, token: str) -> None:
         if not isinstance(name, str) or not name:
             raise ValueError("node name must be a non-empty string")
-        if not isinstance(url, str) or not url:
-            raise ValueError("url must be a non-empty string")
+        validate_ws_url(url)
         if not isinstance(token, str) or not token:
             raise ValueError("token must be a non-empty string")
         data = self._load()
         data["nodes"][name] = {
-            "url": url,
+            "url": url.strip(),
             "token": token,
             "added_at": time.time(),
         }

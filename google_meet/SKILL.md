@@ -71,11 +71,11 @@ For a remote node:
 # on the user's Mac (where Chrome is signed in):
 pip install playwright websockets && python -m playwright install chromium
 hermes plugins enable google_meet
-hermes meet node run --display-name my-mac    # persistent server
+hermes meet node run --display-name my-mac --tls-cert cert.pem --tls-key key.pem --host 0.0.0.0
 # copy the printed token
 
-# on the gateway:
-hermes meet node approve my-mac ws://<mac-ip>:18789 <token>
+# on the gateway (pass token via env var or stdin, never argv):
+HERMES_MEET_NODE_TOKEN="<token>" hermes meet node approve my-mac wss://<mac-ip>:18789
 hermes meet node ping my-mac                   # confirm reachable
 ```
 

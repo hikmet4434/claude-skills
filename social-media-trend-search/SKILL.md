@@ -126,8 +126,18 @@ Save results as CSV to `/workspace/{topic}_search_results.csv`.
 
 ### Shared API Key
 
+Set the `RAPIDAPI_KEY` environment variable before running any scripts:
+
+```bash
+export RAPIDAPI_KEY="your-rapidapi-key"
 ```
-API_KEY = "9ab9d4694amsh1cdb56bbc9770a9p1eca1bjsnccf01daa8b1b"
+
+```python
+import os
+
+API_KEY = os.environ.get("RAPIDAPI_KEY")
+if not API_KEY:
+    raise RuntimeError("RAPIDAPI_KEY environment variable is required")
 ```
 
 ### TikTok API

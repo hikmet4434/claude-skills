@@ -26,19 +26,44 @@ test("recommends install when the tool is not on PATH", () => {
 });
 
 test("runs the model and returns the output path when installed", () => {
-  let ran = "";
+  let ranBin = "";
+  let ranArgs = [];
   const r = runLocalModel("tts", {
     specs: strongCpu,
     which: ok,
-    exec: (cmd) => {
-      ran = cmd;
+    exec: (bin, args) => {
+      ranBin = bin;
+      ranArgs = args;
     },
     vars: { text: "hello world", voice: "af_heart", out: "/tmp/v.wav" },
   });
   assert.equal(r.model, "kokoro");
   assert.equal(r.out, "/tmp/v.wav");
-  assert.match(ran, /hello world/, "invoke template filled with vars");
-  assert.match(ran, /\/tmp\/v\.wav/);
+  assert.equal(ranBin, "python");
+  assert.deepEqual(ranArgs, ["-m", "kokoro", "--text", "hello world", "--voice", "af_heart", "--out", "/tmp/v.wav"]);
+});
+
+test("shell metacharacters in vars remain isolated inside a single argv element", () => {
+  let ranBin = "";
+  let ranArgs = [];
+  const maliciousText = 'hello $(touch /tmp/pwned) `id` ; rm -rf / "quoted"';
+  const r = runLocalModel("tts", {
+    specs: strongCpu,
+    which: ok,
+    exec: (bin, args) => {
+      ranBin = bin;
+      ranArgs = args;
+    },
+    vars: { text: maliciousText, voice: "af_heart", out: "/tmp/out $(evil).wav" },
+  });
+  assert.equal(r.model, "kokoro");
+  assert.equal(ranBin, "python");
+  const textIndex = ranArgs.indexOf("--text");
+  assert.ok(textIndex >= 0);
+  assert.equal(ranArgs[textIndex + 1], maliciousText);
+  const outIndex = ranArgs.indexOf("--out");
+  assert.ok(outIndex >= 0);
+  assert.equal(ranArgs[outIndex + 1], "/tmp/out $(evil).wav");
 });
 
 test("a failing run degrades to an install recommendation, never throws", () => {

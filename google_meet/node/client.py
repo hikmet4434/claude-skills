@@ -20,11 +20,10 @@ class NodeClient:
     """Thin synchronous WS client matching the server's request surface."""
 
     def __init__(self, url: str, token: str, timeout: float = 10.0) -> None:
-        if not isinstance(url, str) or not url:
-            raise ValueError("url must be a non-empty string")
+        _proto.validate_ws_url(url)
         if not isinstance(token, str) or not token:
             raise ValueError("token must be a non-empty string")
-        self.url = url
+        self.url = url.strip()
         self.token = token
         self.timeout = float(timeout)
 

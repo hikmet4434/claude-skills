@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { probeSpecs } from "./specs.mjs";
-import { buildArgv, selectModel } from "./local-models.mjs";
+import { buildArgv, invokeExecutable, selectModel } from "./local-models.mjs";
 
 // Local image generation via mflux (FLUX-on-MLX), the Mac-native runner.
 // Spec-gated: selectModel("imagegen", specs) returns the best FLUX-class model
@@ -33,12 +33,12 @@ export async function mfluxImageGenerate(intent, ctx) {
   if (sel.recommend) return null; // no local model fits -> codex upsell/fallback
 
   const { model } = sel;
-  const bin = model.invoke.trim().split(/\s+/)[0];
+  const bin = invokeExecutable(model.invoke);
   // Not installed? Surface the exact enable-command FIRST (before the model
   // download) so the agent learns the free local path is available instead of
   // silently taking the codex upsell.
   try {
-    execFileSync("which", [bin], { stdio: ["ignore", "ignore", "ignore"] });
+    execFileSync("which", [bin], { stdio: ["ignore", "ignore", "ignore"], shell: false });
   } catch {
     console.error(
       `media-use: local image gen not enabled (\`${bin}\` not on PATH). Install for free on-device FLUX: ${model.install}`,
@@ -52,7 +52,10 @@ export async function mfluxImageGenerate(intent, ctx) {
   const seed = ctx?.seed ?? 42;
 
   const vars = { prompt: intent, w: width, h: height, seed, out: outPath };
-  if (model.repo && model.invoke.includes("{model_path}")) {
+  const needsModelPath = Array.isArray(model.invoke)
+    ? model.invoke.some((t) => t.includes("{model_path}"))
+    : model.invoke.includes("{model_path}");
+  if (model.repo && needsModelPath) {
     const snap = model.repo ? resolveSnapshot(model.repo) : null;
     if (!snap) return null;
     vars.model_path = snap;
@@ -65,6 +68,7 @@ export async function mfluxImageGenerate(intent, ctx) {
       encoding: "utf8",
       timeout: 1_800_000,
       stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
     });
   } catch (err) {
     console.error(

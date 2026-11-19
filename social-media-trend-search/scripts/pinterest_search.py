@@ -10,6 +10,8 @@ Date: 2025-01-27
 
 import http.client
 import json
+import os
+import sys
 import urllib.parse
 from datetime import datetime
 import time
@@ -21,7 +23,9 @@ class PinterestKeywordSearcher:
     
     def __init__(self, api_key):
         """初始化搜索器"""
-        self.api_key = api_key
+        if not api_key or not isinstance(api_key, str) or not api_key.strip():
+            raise ValueError("RAPIDAPI_KEY is required")
+        self.api_key = api_key.strip()
         self.host = "unofficial-pinterest-api.p.rapidapi.com"
         self.headers = {
             'x-rapidapi-key': self.api_key,
@@ -325,8 +329,11 @@ def main():
     print("=" * 60)
     print("\n⚠️ 注意：Pinterest API 不支持地区检索，返回全球搜索结果")
     
-    # API密钥
-    api_key = "9ab9d4694amsh1cdb56bbc9770a9p1eca1bjsnccf01daa8b1b"
+    # 从环境变量读取API密钥
+    api_key = os.environ.get("RAPIDAPI_KEY", "").strip()
+    if not api_key:
+        print("❌ 未设置 RAPIDAPI_KEY 环境变量，请先导出您的 RapidAPI 密钥", file=sys.stderr)
+        sys.exit(1)
     
     try:
         # 创建搜索器实例

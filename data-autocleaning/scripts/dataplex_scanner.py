@@ -23,23 +23,59 @@ import asyncio
 import json
 import logging
 import os
+import re
+import shlex
+import sys
+from typing import Sequence
 import uuid
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+_IDENTIFIER_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_-]*$")
+_LOCATION_RE = re.compile(r"^[a-z][a-z0-9-]*$")
 
-async def run_command_async(cmd: str) -> str:
-  """Runs a shell command asynchronously and returns the stdout."""
-  process = await asyncio.create_subprocess_shell(
-      cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+
+def _validate_identifier(value: str, label: str) -> str:
+  if not isinstance(value, str) or not _IDENTIFIER_RE.fullmatch(value):
+    raise ValueError(f"Invalid {label}: {value!r}")
+  return value
+
+
+def _validate_location(location: str) -> str:
+  if not isinstance(location, str) or not _LOCATION_RE.fullmatch(location):
+    raise ValueError(f"Invalid Google Cloud location: {location!r}")
+  return location
+
+
+def _parse_and_validate_table_id(table_id: str) -> tuple[str, ...]:
+  if not isinstance(table_id, str):
+    raise ValueError(f"Invalid table_id: {table_id!r}")
+  parts = table_id.split(".")
+  if len(parts) not in (3, 4):
+    raise ValueError(
+        "Invalid format. Expected 'project.dataset.table' or "
+        "'project.catalog.namespace.table'."
+    )
+  for part in parts:
+    _validate_identifier(part, "table identifier component")
+  return tuple(parts)
+
+
+async def run_command_async(args: Sequence[str]) -> str:
+  """Runs a command asynchronously without a shell and returns stdout."""
+  if not args:
+    raise ValueError("Command argument list must not be empty")
+  process = await asyncio.create_subprocess_exec(
+      *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
   )
   stdout, stderr = await process.communicate()
 
   if process.returncode != 0:
     raise RuntimeError(
-        f"Command failed: {cmd}\nError: {stderr.decode('utf-8')}"
+        f"Command failed: {shlex.join(args)}\n"
+        f"Error: {stderr.decode('utf-8', errors='replace')}"
     )
 
   return stdout.decode("utf-8")
@@ -47,10 +83,15 @@ async def run_command_async(cmd: str) -> str:
 
 async def get_table_row_count(table_ref: str) -> int:
   """Gets the row count of a BigQuery table using count(*)."""
-  cmd = (
-      "bq query --quiet --nouse_legacy_sql --format=json "
-      f"'SELECT count(*) as count FROM `{table_ref}`'"
-  )
+  _parse_and_validate_table_id(table_ref)
+  cmd = [
+      "bq",
+      "query",
+      "--quiet",
+      "--nouse_legacy_sql",
+      "--format=json",
+      f"SELECT count(*) as count FROM `{table_ref}`",
+  ]
   output = await run_command_async(cmd)
   try:
     results = json.loads(output)
@@ -73,22 +114,26 @@ async def create_and_wait_for_scan(
       location: Google Cloud region (e.g., 'us-central1').
       output_dir: Directory to save the resulting JSON profile.
   """
-  parts = table_id.split(".")
+  try:
+    _validate_location(location)
+  except ValueError as e:
+    logging.error("[%s] %s Skipping.", table_id, e)
+    return
+
+  try:
+    parts = _parse_and_validate_table_id(table_id)
+  except ValueError as e:
+    logging.error("[%s] %s Skipping.", table_id, e)
+    return
+
   if len(parts) == 3:
     project, dataset, table = parts
     data_source_resource = f"//bigquery.googleapis.com/projects/{project}/datasets/{dataset}/tables/{table}"
     bq_table_ref = f"{project}.{dataset}.{table}"
-  elif len(parts) == 4:
+  else:
     project, catalog, namespace, table = parts
     data_source_resource = f"//biglake.googleapis.com/iceberg/v1/restcatalog/v1/projects/{project}/catalogs/{catalog}/namespaces/{namespace}/tables/{table}"
     bq_table_ref = f"{project}.{catalog}.{namespace}.{table}"
-  else:
-    logging.error(
-        "[%s] Invalid format. Expected 'project.dataset.table' or"
-        " 'project.catalog.namespace.table'. Skipping.",
-        table_id,
-    )
-    return
 
   profile_name = f"data-profile-{uuid.uuid4().hex[:8]}"
 
@@ -115,20 +160,23 @@ async def create_and_wait_for_scan(
     )
 
   # Construct the base create command
-  create_cmd_parts = [
-      f"gcloud dataplex datascans create data-profile {profile_name}",
+  create_cmd = [
+      "gcloud",
+      "dataplex",
+      "datascans",
+      "create",
+      "data-profile",
+      profile_name,
       f"--location={location}",
-      f'--data-source-resource="{data_source_resource}"',
+      f"--data-source-resource={data_source_resource}",
       f"--project={project}",
       "--one-time",
-      '--ttl-after-scan-completion="2400s"',
+      "--ttl-after-scan-completion=2400s",
       "--format=json",
   ]
 
   if sampling_percent is not None:
-    create_cmd_parts.append(f"--sampling-percent={sampling_percent}")
-
-  create_cmd = " ".join(create_cmd_parts)
+    create_cmd.append(f"--sampling-percent={sampling_percent}")
 
   logging.info("[%s] Creating Dataplex profile: %s", table_id, profile_name)
   try:
@@ -141,13 +189,17 @@ async def create_and_wait_for_scan(
     return
 
   # Construct the describe command to poll for results
-  describe_cmd = (
-      f"gcloud dataplex datascans describe {profile_name} "
-      f"--location={location} "
-      f"--project={project} "
-      "--view=full "
-      "--format=json"
-  )
+  describe_cmd = [
+      "gcloud",
+      "dataplex",
+      "datascans",
+      "describe",
+      profile_name,
+      f"--location={location}",
+      f"--project={project}",
+      "--view=full",
+      "--format=json",
+  ]
 
   logging.info("[%s] Waiting for profile results...", table_id)
   max_retries = 50
@@ -169,8 +221,27 @@ async def create_and_wait_for_scan(
               attempt,
           )
 
-          output_file = os.path.join(output_dir, f"{table}_{profile_name}.json")
-          with open(output_file, "w") as f:
+          safe_table = os.path.basename(table)
+          if (
+              not safe_table
+              or safe_table != table
+              or not _IDENTIFIER_RE.fullmatch(safe_table)
+          ):
+            raise ValueError(f"Unsafe table name for output path: {table!r}")
+          real_output_dir = os.path.realpath(output_dir)
+          output_file = os.path.realpath(
+              os.path.join(real_output_dir, f"{safe_table}_{profile_name}.json")
+          )
+          if (
+              os.path.commonpath([real_output_dir, output_file])
+              != real_output_dir
+              or output_file == real_output_dir
+          ):
+            raise ValueError(
+                f"Output file escapes output directory: {output_file!r}"
+            )
+
+          with open(output_file, "w", encoding="utf-8") as f:
             json.dump(result, f, indent=2)
 
           logging.info("[%s] Results saved to %s", table_id, output_file)
@@ -221,6 +292,12 @@ async def main():
       help="Directory to save the resulting JSON profiles",
   )
   args = parser.parse_args()
+
+  try:
+    _validate_location(args.location)
+  except ValueError as e:
+    logging.error("%s", e)
+    sys.exit(1)
 
   # Create the output directory upfront
   os.makedirs(args.output_dir, exist_ok=True)

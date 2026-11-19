@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { probeSpecs } from "./specs.mjs";
-import { buildArgv, selectModel } from "./local-models.mjs";
+import { buildArgv, invokeExecutable, selectModel } from "./local-models.mjs";
 
 export async function ltxVideoGenerate(
   intent,
@@ -21,9 +21,9 @@ export async function ltxVideoGenerate(
   }
 
   const { model } = sel;
-  const bin = model.invoke.trim().split(/\s+/)[0];
+  const bin = invokeExecutable(model.invoke);
   try {
-    execFn("which", [bin], { stdio: ["ignore", "ignore", "ignore"] });
+    execFn("which", [bin], { stdio: ["ignore", "ignore", "ignore"], shell: false });
   } catch {
     console.error(
       `media-use: local video gen not enabled (\`${bin}\` not on PATH). Install for free on-device LTX: ${model.install}`,
@@ -49,6 +49,7 @@ export async function ltxVideoGenerate(
       encoding: "utf8",
       timeout: 1_800_000,
       stdio: ["ignore", "pipe", "pipe"],
+      shell: false,
     });
   } catch (err) {
     console.error(
