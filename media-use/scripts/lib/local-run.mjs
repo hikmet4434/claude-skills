@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { selectModel } from "./local-models.mjs";
+import { buildArgv, invokeExecutable, selectModel } from "./local-models.mjs";
 import { probeSpecs } from "./specs.mjs";
 
 // Run a USER-INSTALLED local model for a capability (tts/asr/upscale).
@@ -17,15 +17,20 @@ import { probeSpecs } from "./specs.mjs";
 // produces a confusing error instead of a clean recommend.
 
 function defaultWhich(bin) {
-  execFileSync("command", ["-v", bin], { stdio: "ignore", shell: true });
+  if (!bin || typeof bin !== "string" || bin.startsWith("-")) {
+    throw new Error(`invalid binary name: ${bin}`);
+  }
+  const cmd = process.platform === "win32" ? "where" : "which";
+  execFileSync(cmd, [bin], { stdio: "ignore", shell: false });
 }
 
-function defaultExec(cmd) {
-  execFileSync(cmd, { stdio: ["ignore", "pipe", "pipe"], shell: true, timeout: 600000 });
+function defaultExec(bin, args) {
+  execFileSync(bin, args, {
+    stdio: ["ignore", "pipe", "pipe"],
+    shell: false,
+    timeout: 600000,
+  });
 }
-
-const fill = (tpl, vars) =>
-  tpl.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? String(vars[k]) : ""));
 
 export function runLocalModel(capability, opts = {}) {
   const {
@@ -39,7 +44,10 @@ export function runLocalModel(capability, opts = {}) {
   if (sel.recommend) return sel; // no tier fits -> recommend the CLI path
 
   const { model } = sel;
-  const bin = model.invoke.split(/\s+/)[0];
+  const bin = invokeExecutable(model.invoke);
+  const argTemplates = Array.isArray(model.invoke)
+    ? model.invoke.slice(1)
+    : String(model.invoke).trim().split(/\s+/).slice(1);
   try {
     which(bin);
   } catch {
@@ -50,8 +58,9 @@ export function runLocalModel(capability, opts = {}) {
       reason: `${model.id} not installed`,
     };
   }
+  const args = buildArgv(argTemplates, vars, { missing: "empty" });
   try {
-    exec(fill(model.invoke, vars));
+    exec(bin, args);
   } catch (e) {
     return {
       recommend: "install",

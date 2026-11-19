@@ -26,7 +26,10 @@ test("every capability table is non-empty and well-formed", () => {
       assert.ok(m.id && m.tier && m.needs, `${cap}/${m.id} missing fields`);
       assert.ok(TIERS.includes(m.tier), `${cap}/${m.id} bad tier: ${m.tier}`);
       assert.equal(typeof m.install, "string", `${cap}/${m.id} needs an install command`);
-      assert.equal(typeof m.invoke, "string", `${cap}/${m.id} needs an invoke command`);
+      assert.ok(
+        Array.isArray(m.invoke) && m.invoke.length >= 1 && m.invoke.every((s) => typeof s === "string"),
+        `${cap}/${m.id} needs an [executable, ...argTemplates] invoke array`,
+      );
       // user-installed, local-use-only: there is NO license gate on selection
       assert.equal("license" in m, false, `${cap}/${m.id} must not carry a license gate`);
     }

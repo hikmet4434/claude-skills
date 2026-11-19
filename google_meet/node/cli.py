@@ -9,7 +9,10 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import getpass
 import json
+import os
+import ssl
 import sys
 from typing import Any
 
@@ -27,9 +30,19 @@ def register_cli(subparser: argparse.ArgumentParser) -> None:
     sp = subparser.add_subparsers(dest="node_cmd", required=True)
 
     run = sp.add_parser("run", help="Start a node server on this machine.")
-    run.add_argument("--host", default="0.0.0.0")
+    run.add_argument("--host", default="127.0.0.1")
     run.add_argument("--port", type=int, default=18789)
     run.add_argument("--display-name", default="hermes-meet-node")
+    run.add_argument(
+        "--tls-cert",
+        default=None,
+        help="Path to TLS certificate PEM (required for non-loopback --host).",
+    )
+    run.add_argument(
+        "--tls-key",
+        default=None,
+        help="Path to TLS private key PEM.",
+    )
     run.set_defaults(func=node_command)
 
     lst = sp.add_parser("list", help="List approved remote nodes.")
@@ -38,7 +51,16 @@ def register_cli(subparser: argparse.ArgumentParser) -> None:
     app = sp.add_parser("approve", help="Register a remote node on the gateway.")
     app.add_argument("name")
     app.add_argument("url")
-    app.add_argument("token")
+    app.add_argument(
+        "--token-stdin",
+        action="store_true",
+        help="Read the node token from stdin (default when stdin is not a TTY).",
+    )
+    app.add_argument(
+        "--token-env",
+        default="HERMES_MEET_NODE_TOKEN",
+        help="Environment variable containing the node token (default: HERMES_MEET_NODE_TOKEN).",
+    )
     app.set_defaults(func=node_command)
 
     rm = sp.add_parser("remove", help="Forget a registered node.")
@@ -62,22 +84,35 @@ def node_command(args: argparse.Namespace) -> int:
     cmd = getattr(args, "node_cmd", None)
 
     if cmd == "run":
+        tls_cert = getattr(args, "tls_cert", None) or os.environ.get("HERMES_MEET_TLS_CERT")
+        tls_key = getattr(args, "tls_key", None) or os.environ.get("HERMES_MEET_TLS_KEY")
         server = NodeServer(
             host=args.host,
             port=args.port,
             display_name=args.display_name,
+            tls_cert=tls_cert,
+            tls_key=tls_key,
         )
+        try:
+            ssl_ctx = server.resolve_ssl_context()
+        except (RuntimeError, ValueError, OSError, ssl.SSLError) as exc:
+            print(f"[meet-node] error: {exc}", file=sys.stderr)
+            return 2
+
+        scheme = "wss" if ssl_ctx is not None else "ws"
         token = server.ensure_token()
         print(f"[meet-node] display_name={server.display_name}")
-        print(f"[meet-node] listening on ws://{args.host}:{args.port}")
+        print(f"[meet-node] listening on {scheme}://{args.host}:{args.port}")
+        print(f"[meet-node] token saved to: {server.token_path}")
         print(f"[meet-node] token (copy to gateway): {token}")
-        print(f"[meet-node] approve with:")
-        print(f"             hermes meet node approve <name> ws://<host>:{args.port} {token}")
+        print(f"[meet-node] approve with (do not pass token in CLI arguments):")
+        print(f"             HERMES_MEET_NODE_TOKEN=<token> hermes meet node approve <name> {scheme}://<host>:{args.port}")
+        print(f"             # or: hermes meet node approve <name> {scheme}://<host>:{args.port} --token-stdin")
         try:
             asyncio.run(server.serve())
         except KeyboardInterrupt:
             return 0
-        except RuntimeError as exc:
+        except (RuntimeError, OSError, ssl.SSLError) as exc:
             print(f"[meet-node] error: {exc}", file=sys.stderr)
             return 2
         return 0
@@ -94,7 +129,19 @@ def node_command(args: argparse.Namespace) -> int:
         return 0
 
     if cmd == "approve":
-        reg.add(args.name, args.url, args.token)
+        token = _read_approve_token(args)
+        if not token:
+            print(
+                "[meet-node] error: node token is required via HERMES_MEET_NODE_TOKEN, "
+                "--token-stdin, or interactive prompt",
+                file=sys.stderr,
+            )
+            return 2
+        try:
+            reg.add(args.name, args.url, token)
+        except ValueError as exc:
+            print(f"[meet-node] error: {exc}", file=sys.stderr)
+            return 2
         print(f"approved node {args.name!r} at {args.url}")
         return 0
 
@@ -108,10 +155,10 @@ def node_command(args: argparse.Namespace) -> int:
         if entry is None:
             print(f"no such node: {args.name!r}", file=sys.stderr)
             return 1
-        client = NodeClient(entry["url"], entry["token"])
         try:
+            client = NodeClient(entry["url"], entry["token"])
             result = client.ping()
-        except Exception as exc:  # noqa: BLE001 — surface any connection error
+        except Exception as exc:  # noqa: BLE001 — surface any connection or config error
             print(json.dumps({"ok": False, "error": str(exc)}))
             return 1
         print(json.dumps({"ok": True, "node": args.name, **_coerce_dict(result)}))
@@ -119,6 +166,20 @@ def node_command(args: argparse.Namespace) -> int:
 
     print(f"unknown node command: {cmd!r}", file=sys.stderr)
     return 2
+
+
+def _read_approve_token(args: argparse.Namespace) -> str:
+    """Read node approval token from stdin, env var, or interactive prompt."""
+    if getattr(args, "token_stdin", False):
+        return sys.stdin.read().strip()
+    env_name = getattr(args, "token_env", "HERMES_MEET_NODE_TOKEN")
+    if env_name:
+        env_val = os.environ.get(env_name, "").strip()
+        if env_val:
+            return env_val
+    if not sys.stdin.isatty():
+        return sys.stdin.read().strip()
+    return getpass.getpass("Node token: ").strip()
 
 
 def _coerce_dict(value: Any) -> dict:

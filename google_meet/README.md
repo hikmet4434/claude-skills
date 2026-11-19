@@ -103,13 +103,17 @@ On the node machine (e.g. user's Mac with a signed-in Chrome):
 pip install playwright websockets
 python -m playwright install chromium
 hermes plugins enable google_meet
-hermes meet node run --display-name my-mac --host 0.0.0.0 --port 18789
+# Loopback-only (for SSH tunnel) or non-loopback with TLS:
+hermes meet node run --display-name my-mac --host 127.0.0.1 --port 18789
+# Or with TLS for direct LAN/remote access:
+# hermes meet node run --display-name my-mac --host 0.0.0.0 --port 18789 --tls-cert cert.pem --tls-key key.pem
 # prints the bearer token on first run; copy it
 ```
 
 On the gateway:
 ```bash
-hermes meet node approve my-mac ws://<mac-ip>:18789 <token>
+HERMES_MEET_NODE_TOKEN="<token>" hermes meet node approve my-mac wss://<mac-ip>:18789
+# (or over an SSH tunnel: HERMES_MEET_NODE_TOKEN="<token>" hermes meet node approve my-mac ws://127.0.0.1:18789)
 hermes meet node ping my-mac
 # now any meet_* tool call accepts node='my-mac' (or 'auto')
 ```
@@ -118,8 +122,7 @@ hermes meet node ping my-mac
 
 - URL gate: only `https://meet.google.com/abc-defg-hij`, `/new`, `/lookup/<id>`.
 - No calendar scanning, no auto-dial, no auto-consent announcement.
-- Node server uses bearer-token auth; no key exchange, no TLS termination
-  built in — run it on a LAN or behind a reverse proxy you trust.
+- Node server binds to `127.0.0.1` by default, requires TLS (`wss://` via `--tls-cert`/`--tls-key`) for non-loopback bindings, and uses constant-time bearer-token verification.
 - One active meeting per (gateway, node) pair. A second `meet_join` leaves the first.
 - `meet_say` refuses unless the active meeting was started with `mode='realtime'`.
 

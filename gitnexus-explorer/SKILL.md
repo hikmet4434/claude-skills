@@ -92,7 +92,7 @@ The index lives in `.gitnexus/` inside the repo (auto-gitignored).
 
 ### 4. Create the Proxy Script
 
-Write this to a file (e.g., `$GITNEXUS_DIR/proxy.mjs`). It serves the production
+Copy `scripts/proxy.mjs` (or write this to `$GITNEXUS_DIR/proxy.mjs`). It serves the production
 web UI and proxies `/api/*` to the GitNexus backend — same origin, no CORS issues,
 no sudo, no nginx.
 
@@ -101,9 +101,11 @@ import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const API_PORT = parseInt(process.env.API_PORT || '4747');
+const API_PORT = parseInt(process.env.API_PORT || '4747', 10);
+const HOST = process.env.HOST || '127.0.0.1';
 const DIST_DIR = process.argv[2] || './dist';
-const PORT = parseInt(process.argv[3] || '8888');
+const ROOT_DIR = path.resolve(DIST_DIR);
+const PORT = parseInt(process.argv[3] || '8888', 10);
 
 const MIME = {
   '.html': 'text/html', '.js': 'application/javascript', '.css': 'text/css',
@@ -115,7 +117,7 @@ const MIME = {
 function proxyToApi(req, res) {
   const opts = {
     hostname: '127.0.0.1', port: API_PORT,
-    path: req.url, method: req.method, headers: req.headers,
+    path: req.url, method: req.method, headers: { ...req.headers, host: `127.0.0.1:${API_PORT}` },
   };
   const proxy = http.request(opts, (upstream) => {
     res.writeHead(upstream.statusCode, upstream.headers);
@@ -126,21 +128,39 @@ function proxyToApi(req, res) {
 }
 
 function serveStatic(req, res) {
-  let filePath = path.join(DIST_DIR, req.url === '/' ? 'index.html' : req.url.split('?')[0]);
-  if (!fs.existsSync(filePath)) filePath = path.join(DIST_DIR, 'index.html');
-  const ext = path.extname(filePath);
-  const mime = MIME[ext] || 'application/octet-stream';
+  let urlPath;
   try {
-    const data = fs.readFileSync(filePath);
+    urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  } catch {
+    res.writeHead(400); res.end('Bad request'); return;
+  }
+  if (!urlPath.startsWith('/') || urlPath.includes('\0')) {
+    res.writeHead(403); res.end('Forbidden'); return;
+  }
+  const target = urlPath === '/' ? path.join(ROOT_DIR, 'index.html') : path.resolve(ROOT_DIR, '.' + urlPath);
+  if (target !== ROOT_DIR && !target.startsWith(ROOT_DIR + path.sep)) {
+    res.writeHead(403); res.end('Forbidden'); return;
+  }
+  let filePath = target === ROOT_DIR ? path.join(ROOT_DIR, 'index.html') : target;
+  if (!fs.existsSync(filePath) && !path.extname(filePath)) filePath = path.join(ROOT_DIR, 'index.html');
+  try {
+    const realRoot = fs.realpathSync(ROOT_DIR);
+    const realFile = fs.realpathSync(filePath);
+    if (realFile !== realRoot && !realFile.startsWith(realRoot + path.sep)) {
+      res.writeHead(403); res.end('Forbidden'); return;
+    }
+    const ext = path.extname(realFile);
+    const mime = MIME[ext] || 'application/octet-stream';
+    const data = fs.readFileSync(realFile);
     res.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'public, max-age=3600' });
     res.end(data);
   } catch { res.writeHead(404); res.end('Not found'); }
 }
 
 http.createServer((req, res) => {
-  if (req.url.startsWith('/api')) proxyToApi(req, res);
+  if ((req.url || '/').startsWith('/api')) proxyToApi(req, res);
   else serveStatic(req, res);
-}).listen(PORT, () => console.log(`GitNexus proxy on http://localhost:${PORT}`));
+}).listen(PORT, HOST, () => console.log(`GitNexus proxy on http://${HOST}:${PORT}`));
 ```
 
 ### 5. Start the Services

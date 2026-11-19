@@ -65,7 +65,7 @@ def _resolve_node_client(node: Optional[str]):
     if entry is None:
         raise RuntimeError(
             f"no registered meet node matches {node!r} — "
-            "run `hermes meet node approve <name> <url> <token>` first"
+            "run `HERMES_MEET_NODE_TOKEN=<token> hermes meet node approve <name> <url>` first"
         )
     client = NodeClient(url=entry["url"], token=entry["token"])
     return client, entry.get("name")

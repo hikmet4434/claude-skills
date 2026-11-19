@@ -84,7 +84,7 @@ def _pid_alive(pid: int) -> bool:
 def start(
     url: str,
     *,
-    out_dir: Optional[Path] = None,
+    out_dir: Optional[Path | str] = None,
     headed: bool = False,
     auth_state: Optional[str] = None,
     guest_name: str = "Hermes Agent",
@@ -119,7 +119,7 @@ def start(
         stop(reason="replaced by new meet_join")
 
     meeting_id = _meeting_id_from_url(url)
-    out = out_dir or (_root() / meeting_id)
+    out = Path(out_dir) if out_dir else (_root() / meeting_id)
     out.mkdir(parents=True, exist_ok=True)
 
     # Wipe any stale transcript/status files from a previous run of this

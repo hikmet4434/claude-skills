@@ -61,7 +61,10 @@ def run_script(script_name):
 
 def main():
     """主函数：并行执行三个搜索脚本"""
-    
+    if not os.environ.get("RAPIDAPI_KEY", "").strip():
+        print("❌ 未设置 RAPIDAPI_KEY 环境变量，请先执行: export RAPIDAPI_KEY='your_key'", file=sys.stderr)
+        sys.exit(1)
+
     print("🚀 社交媒体热门内容并行搜索工具")
     print("=" * 60)
     print(f"⏰ 开始时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

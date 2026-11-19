@@ -8,14 +8,17 @@
  *
  * Environment:
  *   API_PORT: GitNexus serve backend port (default: 4747)
+ *   HOST:     Bind host (default: 127.0.0.1)
  */
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const API_PORT = parseInt(process.env.API_PORT || '4747');
+const API_PORT = parseInt(process.env.API_PORT || '4747', 10);
+const HOST = process.env.HOST || '127.0.0.1';
 const DIST_DIR = process.argv[2] || './dist';
-const PORT = parseInt(process.argv[3] || '8888');
+const ROOT_DIR = path.resolve(DIST_DIR);
+const PORT = parseInt(process.argv[3] || '8888', 10);
 
 const MIME = {
   '.html': 'text/html',
@@ -52,19 +55,51 @@ function proxyToApi(req, res) {
 }
 
 function serveStatic(req, res) {
-  const urlPath = req.url.split('?')[0];
-  let filePath = path.join(DIST_DIR, urlPath === '/' ? 'index.html' : urlPath);
+  const rawUrlPath = (req.url || '/').split('?')[0];
+  let urlPath;
+  try {
+    urlPath = decodeURIComponent(rawUrlPath);
+  } catch {
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('Bad request');
+    return;
+  }
+
+  if (!urlPath.startsWith('/') || urlPath.includes('\0')) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
+
+  const target =
+    urlPath === '/'
+      ? path.join(ROOT_DIR, 'index.html')
+      : path.resolve(ROOT_DIR, '.' + urlPath);
+  if (target !== ROOT_DIR && !target.startsWith(ROOT_DIR + path.sep)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
+  }
+
+  let filePath = target === ROOT_DIR ? path.join(ROOT_DIR, 'index.html') : target;
 
   // SPA fallback: if file doesn't exist and isn't a static asset, serve index.html
   if (!fs.existsSync(filePath) && !path.extname(filePath)) {
-    filePath = path.join(DIST_DIR, 'index.html');
+    filePath = path.join(ROOT_DIR, 'index.html');
   }
 
-  const ext = path.extname(filePath);
-  const mime = MIME[ext] || 'application/octet-stream';
-
   try {
-    const data = fs.readFileSync(filePath);
+    const realRoot = fs.realpathSync(ROOT_DIR);
+    const realFile = fs.realpathSync(filePath);
+    if (realFile !== realRoot && !realFile.startsWith(realRoot + path.sep)) {
+      res.writeHead(403, { 'Content-Type': 'text/plain' });
+      res.end('Forbidden');
+      return;
+    }
+
+    const ext = path.extname(realFile);
+    const mime = MIME[ext] || 'application/octet-stream';
+    const data = fs.readFileSync(realFile);
     res.writeHead(200, {
       'Content-Type': mime,
       'Cache-Control': ext === '.html' ? 'no-cache' : 'public, max-age=86400',
@@ -77,16 +112,16 @@ function serveStatic(req, res) {
 }
 
 const server = http.createServer((req, res) => {
-  if (req.url.startsWith('/api')) {
+  if ((req.url || '/').startsWith('/api')) {
     proxyToApi(req, res);
   } else {
     serveStatic(req, res);
   }
 });
 
-server.listen(PORT, () => {
-  console.log(`GitNexus proxy listening on http://localhost:${PORT}`);
-  console.log(`  Web UI: http://localhost:${PORT}/`);
-  console.log(`  API:    http://localhost:${PORT}/api/repos`);
+server.listen(PORT, HOST, () => {
+  console.log(`GitNexus proxy listening on http://${HOST}:${PORT}`);
+  console.log(`  Web UI: http://${HOST}:${PORT}/`);
+  console.log(`  API:    http://${HOST}:${PORT}/api/repos`);
   console.log(`  Backend: http://127.0.0.1:${API_PORT}`);
 });
